@@ -6,12 +6,25 @@ client = OpenAI(
     base_url=config.BASE_URL
 )
 
-response = client.chat.completions.create(
-    messages=[
-        {"role":"system","content":config.SYS_PROMPT},
-        {"role":"user","content":"hi"},
-    ],
-    model=config.MODEL,
-    temperature=config.TEMPERATURE
-)
-print(response.choices[0].message.content)
+messages = [ {"role":"system","content":config.SYS_PROMPT}]
+
+def chat(prompt: str):
+    completion = client.chat.completions.create(
+        model=config.MODEL,
+        temperature=config.TEMPERATURE,
+        messages=messages
+    )
+
+    response = completion.choices[0].message.content
+
+    print(response)
+    messages.append({"role": "user", "content": prompt})
+    messages.append({"role": "assistant", "content": response})
+
+
+if __name__ == "__main__":
+    while True:
+        user_input = input("User: ")
+        if "bye" in user_input.lower().strip().split():
+            break
+        chat(user_input)
