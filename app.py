@@ -1,6 +1,6 @@
 from openai import AsyncOpenAI
 import chainlit as cl
-from llm_error_handling import handle_error
+from PyPDF2 import PdfReader
 import sys, traceback, config
 
 @cl.on_chat_start
@@ -24,6 +24,23 @@ async def main(mes: cl.Message):
 
         client = cl.user_session.get("client")
         messages = cl.user_session.get("messages")
+
+        if mes.elements:
+            for ele in mes.elements:
+
+                # standard text files (.txt, .md, etc) # example of ele.mine are
+                if "text" in ele.mime: # .txt == "text/plan" & .md == "text/markdown"
+                    with open(ele.path, "r", encoding="utf-8") as f:
+                        mes.content += f"\n\n--- content of {ele.name} ---\n{f.read()}"
+
+                elif "pdf" in ele.mime:
+                    with open(ele.path, "rb") as f:
+                        pdf_reader = PdfReader(f)
+                        mes.content += f"\n\n--- Content of {ele.name} ---"
+                        for page in pdf_reader.pages:
+                            mes.content += f"/n{page.extract_text()}"
+                
+        
         messages.append({"role": "user", "content": mes.content})
 
         stream = await client.chat.completions.create(
