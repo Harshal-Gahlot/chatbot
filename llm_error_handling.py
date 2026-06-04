@@ -2,7 +2,7 @@ import sys, traceback, config
 RED = "\033[31m"
 RESET = "\033[0m"
 
-def handle_error(fun: function, *args):
+def handle_error(fun, *args):
     try:
         fun(*args)
     except Exception as e:
@@ -12,3 +12,4 @@ def handle_error(fun: function, *args):
         print("function name: ",traceback.extract_tb(exc_tb)[1].name)
         print("filename: ", "/".join(traceback.extract_tb(exc_tb)[1].filename.split("/")[-2:]))
         print("ERROR MESSAGE:",RED, str(e), RESET)
+    
