@@ -27,8 +27,7 @@ async def main(mes: cl.Message):
 
         if mes.elements:
             for ele in mes.elements:
-
-                # standard text files (.txt, .md, etc) # example of ele.mine are
+                # standard text files (.txt, .md, etc) # example of ele.mime are
                 if "text" in ele.mime: # .txt == "text/plan" & .md == "text/markdown"
                     with open(ele.path, "r", encoding="utf-8") as f:
                         mes.content += f"\n\n--- content of {ele.name} ---\n{f.read()}"
