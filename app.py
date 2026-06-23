@@ -1,10 +1,11 @@
 from openai import AsyncOpenAI
 import chainlit as cl
-from PyPDF2 import PdfReader
 import sys, traceback, config
+from utils import extractUploadedFiles, printError
 
+# When chat start
 @cl.on_chat_start
-def start_app():
+async def start_app():
     print("app started")
     client = AsyncOpenAI(
         base_url=config.BASE_URL,
@@ -14,7 +15,9 @@ def start_app():
 
     cl.user_session.set("client", client)
     cl.user_session.set("messages", messages)
-
+    # await cl.Message(content="Hi im your AI assistant, ask me anything.").send()
+    
+# Handle Message
 @cl.on_message
 async def main(mes: cl.Message):
     try:
@@ -25,20 +28,8 @@ async def main(mes: cl.Message):
         client = cl.user_session.get("client")
         messages = cl.user_session.get("messages")
 
-        if mes.elements:
-            for ele in mes.elements:
-                # standard text files (.txt, .md, etc) # example of ele.mime are
-                if "text" in ele.mime: # .txt == "text/plan" & .md == "text/markdown"
-                    with open(ele.path, "r", encoding="utf-8") as f:
-                        mes.content += f"\n\n--- content of {ele.name} ---\n{f.read()}"
-
-                elif "pdf" in ele.mime:
-                    with open(ele.path, "rb") as f:
-                        pdf_reader = PdfReader(f)
-                        mes.content += f"\n\n--- Content of {ele.name} ---"
-                        for page in pdf_reader.pages:
-                            mes.content += f"/n{page.extract_text()}"
-                
+        # extract PDF or txt file if uploaded
+        if mes.elements: extractUploadedFiles(mes)                
         
         messages.append({"role": "user", "content": mes.content})
 
@@ -63,14 +54,22 @@ async def main(mes: cl.Message):
     except Exception as e:
         msg.content = f"❌ Error: {str(e)}"
         await msg.update()
-
-
-        RED = "\033[31m"
-        RESET = "\033[0m"
         exc_type, exc_value, exc_tb = sys.exc_info()
 
-        print("\nUnder CODE BLOCK: ",RED,traceback.extract_tb(exc_tb)[1].line, RESET)
+        printError("\nUnder CODE BLOCK", traceback.extract_tb(exc_tb)[1].line)
         print("line number: ",traceback.extract_tb(exc_tb)[1].lineno)
         print("function name: ",traceback.extract_tb(exc_tb)[1].name)
         print("filename:part", "/".join(traceback.extract_tb(exc_tb)[1].filename.split("/")[-2:]))
-        print("ERROR MESSAGE:",RED, str(e), RESET)
+        printError("ERROR MESSAGE", str(e))
+
+
+@cl.on_chat_end
+def on_chat_end():
+    printError("", "The user is disconnected!") # just to make this log red color, not an error.
+
+@cl.on_stop
+def on_stop():
+    """The on_stop decorator is used to define a hook that is called
+    when the user clicks the stop button while a task was running."""
+    pass
+    # print("user stopped the llm mid way")
