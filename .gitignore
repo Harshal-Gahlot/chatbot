@@ -1,6 +1,4 @@
 .env
 __pycache__
-.chainlit
 .venv
 .files
-chainlit.md
