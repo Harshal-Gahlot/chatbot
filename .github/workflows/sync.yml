@@ -1,0 +1,20 @@
+name: sync gh to hf
+
+on: push
+
+jobs:
+    push-gh-to-hf:
+        runs-on: ubuntu-latest
+        steps:
+
+          - name: download from github
+            uses: actions/checkout@v3
+            with:
+                fetch-depth: 0
+                lfs: true
+        
+          - name: pushing to hugging face
+            env: 
+                HF_TOKEN: ${{ secrets.HF_TOKEN }}
+            run: | 
+                git push https://harshal-g:${HF_TOKEN}@https://huggingface.co/spaces/harshal-g/chatbot main --force
