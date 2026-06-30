@@ -2,6 +2,25 @@ from openai import AsyncOpenAI
 import chainlit as cl
 import sys, traceback, config
 from utils import extractUploadedFiles, printError
+from config import supabase
+
+# Logging in
+@cl.password_auth_callback
+async def authentication(email: str, password: str):
+    try:
+        user_data = supabase.auth.sign_in_with_password({
+            "email": email,
+            "password": password
+        }).user
+
+        print("User " + user_data.email + " logged in")
+        return cl.User(
+            identifier=user_data.email,
+            metadata={"supabase_id": user_data.id}
+        )
+    except Exception as e:
+        print(e)
+        return None
 
 # When chat start
 @cl.on_chat_start
@@ -25,13 +44,22 @@ async def main(mes: cl.Message):
         msg = cl.Message(content="")
         await msg.send()
 
+        session_id = cl.user_session.get("id")
+        user_data = cl.user_session.get("user")
+        user_id = user_data.metadata["supabase_id"]
+        user_session_ids = {"session_id": session_id, "user_id": user_id}
+        print(user_session_ids)
+
         client = cl.user_session.get("client")
         messages = cl.user_session.get("messages")
 
         # extract PDF or txt file if uploaded
         if mes.elements: extractUploadedFiles(mes)                
         
-        messages.append({"role": "user", "content": mes.content})
+        user_input = {"role": "user", "content": mes.content}
+        messages.append(user_input)
+        r = supabase.table("chats_history").insert(user_input | user_session_ids)
+        r.execute()
 
         stream = await client.chat.completions.create(
             model=config.MODEL,
@@ -47,7 +75,9 @@ async def main(mes: cl.Message):
                 await msg.stream_token(token)
 
         # update the content fr:
-        messages.append({"role": "assistant", "content": msg.content})
+        llm_output = {"role": "assistant", "content": msg.content}
+        messages.append(llm_output)
+        supabase.table("chats_history").insert(llm_output | user_session_ids).execute()
         await msg.update()
 
 
@@ -56,11 +86,14 @@ async def main(mes: cl.Message):
         await msg.update()
         exc_type, exc_value, exc_tb = sys.exc_info()
 
-        printError("\nUnder CODE BLOCK", traceback.extract_tb(exc_tb)[1].line)
-        print("line number: ",traceback.extract_tb(exc_tb)[1].lineno)
-        print("function name: ",traceback.extract_tb(exc_tb)[1].name)
-        print("filename:part", "/".join(traceback.extract_tb(exc_tb)[1].filename.split("/")[-2:]))
+        # change the number [n] in below lines if error lines is not correct
+        printError("\nUnder CODE BLOCK", traceback.extract_tb(exc_tb)[0].line)
+        print("line number: ",traceback.extract_tb(exc_tb)[0].lineno)
+        print("parent function name: ",traceback.extract_tb(exc_tb)[0].name)
+        print("child function name: ",traceback.extract_tb(exc_tb)[1].name)
+        print("filename:part", "/".join(traceback.extract_tb(exc_tb)[0].filename.split("/")[-2:]))
         printError("ERROR MESSAGE", str(e))
+        print(e)
 
 
 @cl.on_chat_end
