@@ -9,6 +9,7 @@ def initEnv(provider):
     MODEL: str = ""
     TEMPERATURE = 0.8
     SYS_PROMPT: str = "you are an very honest llm assistant who say to the point and directly answer to what is being asked. No beating around the buss, and respond concisely. When you're starting the chat very first time, introducing you self with your llm name, model name, and exact configuration, billions parameters and then continue replying user, you must only do this on the first message and not after that."
+    supabase_key: str = getenv("SUPABASE_KEY")
     
     match provider:
         case "groq":
@@ -27,22 +28,21 @@ def initEnv(provider):
             MODEL = "llama3.2:1b"
             TEMPERATURE = 0.1
             SYS_PROMPT = "You are a Chatbot built by a person named Harshal, running locally. You are an AI assistant based on the Llama 3.2 1B architecture hence you have 1 billion parameters. Always be honest about your size. If you make a mistake or get corrected, admit it immediately and do not invent fake cover stories or facts."
+            supabase_key: str = getenv("SUPABASE_KEY_LOCAL")
         case _:
             raise ValueError("no such provider")
         
     if not BASE_URL or not API_KEY or not MODEL:
         raise ValueError("the provider's values are set incorrectly")
     else:
-        return BASE_URL, API_KEY, MODEL, TEMPERATURE, SYS_PROMPT
+        return BASE_URL, API_KEY, MODEL, TEMPERATURE, SYS_PROMPT, supabase_key
 
 
-(BASE_URL, API_KEY, MODEL, TEMPERATURE, SYS_PROMPT) = initEnv("local")
-print(BASE_URL, API_KEY, MODEL, TEMPERATURE, SYS_PROMPT)
+(BASE_URL, API_KEY, MODEL, TEMPERATURE, SYS_PROMPT, supabase_key) = initEnv("local")
+print(BASE_URL, MODEL, SYS_PROMPT, TEMPERATURE)
 
 
-## Supabase:
+# Supabase:
 
 url: str = getenv("SUPABASE_URL")
-key: str = getenv("SUPABASE_KEY")
-
-supabase: Client = create_client(url, key)
+supabase: Client = create_client(url, supabase_key)
