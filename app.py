@@ -17,7 +17,6 @@ class Chatbot:
                 "password": password
             }).user
 
-            print("User " + user_data.email + " logged in")
             return cl.User(
                 identifier=user_data.email,
                 metadata={"supabase_id": user_data.id}
@@ -33,31 +32,9 @@ class Chatbot:
         )
         messages = [ {"role":"system","content":config.SYS_PROMPT}]
 
-        self.session_id = cl.user_session.get("id")
-        self.user_data = cl.user_session.get("user")
-        self.user_id = self.user_data.metadata["supabase_id"]
-        
-        try:
-            response = supabase.table("chats_history")\
-            .select("role", "content")\
-            .eq("user_id", self.user_id)\
-            .eq("session_id", "f36ad68c-af64-4833-a4f0-4eb091361db3")\
-            .order("created_at", desc=False)\
-            .execute()
-            for msg in response.data:
-                messages.append({"role": msg["role"], "content": msg["content"]})
-                author = self.user_data.identifier if msg["role"] == "user" else "Assistant"
-                step_type = "user_message" if msg["role"] == "user" else "assistant_message"
-                await cl.Message(content=msg["content"], author=author, type=step_type).send()
-
-        except Exception as e:
-            printError("Error while loading chats history from supabase", e)
-
         cl.user_session.set("client", client)
         cl.user_session.set("messages", messages)
         print("app started\n")
-
-        # await cl.Message(content="Hi im your AI assistant, ask me anything.").send()
 
     async def on_new_message(self, mes: cl.Message):
         try:
@@ -73,7 +50,7 @@ class Chatbot:
             user_input = {"role": "user", "content": mes.content}
             messages.append(user_input)
 
-            stream = await client.chat.completions.create( model=config.MODEL,
+            stream = await client.chat.completions.create(model=config.MODEL,
                 temperature=config.TEMPERATURE,
                 messages=messages,
                 stream=True
@@ -89,7 +66,6 @@ class Chatbot:
             llm_output = {"role": "assistant", "content": msg.content}
 
             messages.append(llm_output)
-            print("\n", messages, "\n")
             await msg.update()
 
         except Exception as e:
