@@ -5,6 +5,7 @@ from utils import extractUploadedFiles, printError
 from config import supabase
 import chainlit.data as cl_data
 from chainlit.data.sql_alchemy import SQLAlchemyDataLayer
+from chainlit.types import ThreadDict
 
 cl_data._data_layer = SQLAlchemyDataLayer(conninfo=config.DATABASE_URL)
 
@@ -71,6 +72,7 @@ async def on_new_message( mes: cl.Message):
 
         messages.append(llm_output)
         await msg.update()
+        print(cl.user_session.__dict__)
 
     except Exception as e:
         msg.content = f"❌ Error: {str(e)}"
@@ -85,6 +87,18 @@ async def on_new_message( mes: cl.Message):
         print("child function name: ",traceback.extract_tb(exc_tb)[1].name)
         print("filename:part", "/".join(traceback.extract_tb(exc_tb)[0].filename.split("/")[-2:]))
         printError("ERROR MESSAGE", str(e))
+
+@cl.on_chat_resume
+async def on_chat_resume(thread: ThreadDict):
+    print("user want to resume the chat")
+    client = AsyncOpenAI(
+        base_url=config.BASE_URL,
+        api_key=config.API_KEY
+    )
+    # messages = [ {"role":"system","content":config.SYS_PROMPT}]
+
+    cl.user_session.set("client", client)
+    # cl.user_session.set("messages", messages)
 
 @cl.on_chat_end
 def on_chat_end():
