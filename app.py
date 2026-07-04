@@ -1,13 +1,11 @@
 from openai import AsyncOpenAI
 import chainlit as cl
 import sys, traceback, config
-from utils import extractUploadedFiles, printError
+from utils import extractUploadedFilesByUser, printError, getUploadedFilesFromBucket
 from config import supabase
 import chainlit.data as cl_data
 from chainlit.data.sql_alchemy import SQLAlchemyDataLayer
 from chainlit.types import ThreadDict
-
-cl_data._data_layer = SQLAlchemyDataLayer(conninfo=config.DATABASE_URL)
 
 # Logging in
 @cl.password_auth_callback
@@ -50,7 +48,7 @@ async def on_new_message( mes: cl.Message):
         messages = cl.user_session.get("messages")
 
         # extract PDF or txt file if uploaded
-        if mes.elements: extractUploadedFiles(mes)                
+        if mes.elements: extractUploadedFilesByUser(mes)
         
         user_input = {"role": "user", "content": mes.content}
         messages.append(user_input)
@@ -79,7 +77,6 @@ async def on_new_message( mes: cl.Message):
         # msg.is_error(True)
         await msg.update()
         exc_type, exc_value, exc_tb = sys.exc_info()
-
         # change the number [n] in below lines if error lines is not correct
         printError("\nUnder CODE BLOCK", traceback.extract_tb(exc_tb)[0].line)
         print("line number: ",traceback.extract_tb(exc_tb)[0].lineno)
@@ -90,15 +87,25 @@ async def on_new_message( mes: cl.Message):
 
 @cl.on_chat_resume
 async def on_chat_resume(thread: ThreadDict):
-    print("user want to resume the chat")
-    client = AsyncOpenAI(
-        base_url=config.BASE_URL,
-        api_key=config.API_KEY
-    )
-    # messages = [ {"role":"system","content":config.SYS_PROMPT}]
+    # try:
+        print("user want to resume the chat\n")
+        client = AsyncOpenAI(
+            base_url=config.BASE_URL,
+            api_key=config.API_KEY
+        )
 
-    cl.user_session.set("client", client)
-    # cl.user_session.set("messages", messages)
+        elements = thread.get("elements", [])
+        # print(elements)
+        # for step in thread.get("steps", []):
+            # elements.extend(step.get("elements", []))
+
+        getUploadedFilesFromBucket(elements)
+
+        cl.user_session.set("client", client)
+        # messages = [ {"role":"system","content":config.SYS_PROMPT}]
+        # cl.user_session.set("messages", messages)
+    # except Exception as e:
+        # printError("got error in on chat resume",str(e))
 
 @cl.on_chat_end
 def on_chat_end():
@@ -111,3 +118,28 @@ def on_stop():
     when the user clicks the stop button while a task was running."""
     pass
     # print("user stopped the llm mid way")
+
+
+class CustomDataLayer(SQLAlchemyDataLayer):
+    async def create_element(self, element):
+        if element.path:
+            with open(element.path, "rb") as f:
+                file_path = f"{element.thread_id}/{element.id}-{element.name}"
+                supabase.storage.from_("chatbot-files").upload(
+                        file=f,
+                        path=file_path,
+                        file_options={"content-type": element.mime}
+                        )
+            element.url = supabase.storage.from_("chatbot-files").get_public_url(file_path)
+        element_dict = element.to_dict()
+        clean_dict = {k:v for k,v in element_dict.items() if v is not None}
+
+        columns = ", ".join(f'"{key}"' for key in clean_dict.keys())
+        values  = ", ".join(f':{key}' for key in clean_dict.keys())
+
+        query = f"INSERT INTO elements ({columns}) VALUES ({values}) ON CONFLICT (id) DO NOTHING;"
+        await self.execute_sql(query=query, parameters=clean_dict)
+
+
+cl_data._data_layer = CustomDataLayer(conninfo=config.DATABASE_URL)
+
