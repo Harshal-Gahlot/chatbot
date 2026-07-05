@@ -27,6 +27,7 @@ async def authentication( email: str, password: str):
 # When chat start
 @cl.on_chat_start
 async def start_app():
+    print("new chat started\n")
     client = AsyncOpenAI(
         base_url=config.BASE_URL,
         api_key=config.API_KEY
@@ -35,7 +36,6 @@ async def start_app():
 
     cl.user_session.set("client", client)
     cl.user_session.set("messages", messages)
-    print("app started\n")
 
 # Handle Message
 @cl.on_message
@@ -81,7 +81,7 @@ async def on_new_message( mes: cl.Message):
         printError("\nUnder CODE BLOCK", traceback.extract_tb(exc_tb)[0].line)
         print("line number: ",traceback.extract_tb(exc_tb)[0].lineno)
         print("parent function name: ",traceback.extract_tb(exc_tb)[0].name)
-        print("child function name: ",traceback.extract_tb(exc_tb)[1].name)
+        print("child function name: ",traceback.extract_tb(exc_tb)[0].name)
         print("filename:part", "/".join(traceback.extract_tb(exc_tb)[0].filename.split("/")[-2:]))
         printError("ERROR MESSAGE", str(e))
 

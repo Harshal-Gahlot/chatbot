@@ -24,9 +24,9 @@ def getUploadedFilesFromBucket(elements):
                 content += f"\n\n--- content of {ele.name} ---\n{f.read()}"
 
         elif "pdf" in ele.get("mime"):
-            print("pdf exist")
-            fileURL = requests.get(ele["url"])
-            file = io.BytesIO(fileURL.content)
+            print("found a pdf file")
+            response = requests.get(ele["url"])
+            file = io.BytesIO(response.content)
             pdf_reader = PdfReader(file)
             content = f"\n\n--- Content of {ele.get('name')} ---"
             for page in pdf_reader.pages:
