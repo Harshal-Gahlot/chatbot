@@ -12,10 +12,10 @@ def extractUploadedFilesByUser(mes):
             with open(ele.path, "rb") as f:
                 pdf_reader = PdfReader(f)
                 mes.content += f"\n\n--- Content of {ele.name} ---"
-                count = 1
+                i = 1
                 for page in pdf_reader.pages:
                     mes.content += f"\npage no. {i}:\t{page.extract_text()}"
-                    count += 1
+                    i += 1
 
 def getUploadedFilesFromBucket(ele):
     try:
@@ -31,10 +31,10 @@ def getUploadedFilesFromBucket(ele):
             file = io.BytesIO(response.content)
             pdf_reader = PdfReader(file)
             content = f"\n\n--- Content of {ele.get('name')} ---"
-            count = 1
+            i = 1
             for page in pdf_reader.pages:
                 content += f"\npage no. {i}:\t{page.extract_text()}"
-                count += 1
+                i += 1
             return content
     except Exception as e:
         printError("Error featching uploaded file", e)

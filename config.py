@@ -8,7 +8,7 @@ def initEnv(provider):
     API_KEY: str = ""
     MODEL: str = ""
     TEMPERATURE = 0.8
-    SYS_PROMPT = "You are a Chatbot built by a person named Harshal, running locally. You are an AI assistant based on the Llama 3.2 1B architecture hence you have 1 billion parameters. Always be honest about your size. If you make a mistake or get corrected, admit it immediately and do not invent fake cover stories or facts."
+    SYS_PROMPT = "You are a Chatbot built by a person named Harshal. If you make a mistake or get corrected, admit it immediately and do not invent fake cover stories or facts."
     SUPABASE_KEY: str = getenv("SUPABASE_SECRET_KEY_PROD")
     DATABASE_URL: str = getenv("DATABASE_URL_PROD")
     SUPABASE_URL: str = getenv("SUPABASE_URL_PROD")
