@@ -46,8 +46,9 @@ async def on_new_message( mes: cl.Message):
         await msg.send()
         client = cl.user_session.get("client")
         messages = cl.user_session.get("messages")
+        print(messages)
 
-        # extract PDF or txt file if uploaded
+        # extract PDF or txt file if uploaded. mes is modified in-place hence no return.
         if mes.elements: extractUploadedFilesByUser(mes)
         
         user_input = {"role": "user", "content": mes.content}
@@ -95,15 +96,26 @@ async def on_chat_resume(thread: ThreadDict):
         )
 
         elements = thread.get("elements", [])
-        # print(elements)
-        # for step in thread.get("steps", []):
-            # elements.extend(step.get("elements", []))
+        elements_dict = {}
+        if elements:
+            for e in elements:
+                elements_dict[e.get("forId")] = e
 
-        getUploadedFilesFromBucket(elements)
+        messages = [ {"role": "system", "content": config.SYS_PROMPT}]
 
+        for step in thread.get("steps", []):
+            who_messaged = step["type"].split("_")[0] 
+            if who_messaged == "run": continue
+            if who_messaged == "user" and step['id'] in elements_dict.keys():
+                file_content = getUploadedFilesFromBucket(elements_dict[step["id"]])
+                messages.append({"role":who_messaged, "content": step.get("output", "") + file_content})
+                continue
+
+            messages.append({"role":who_messaged, "content": step.get("output", "")})
+                
         cl.user_session.set("client", client)
-        # messages = [ {"role":"system","content":config.SYS_PROMPT}]
-        # cl.user_session.set("messages", messages)
+        cl.user_session.set("messages", messages)
+
     # except Exception as e:
         # printError("got error in on chat resume",str(e))
 
