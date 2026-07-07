@@ -1,11 +1,12 @@
 from openai import AsyncOpenAI
 import chainlit as cl
-import sys, traceback, config
+import sys, traceback
+from config import config
 from utils import extractUploadedFilesByUser, printError, getUploadedFilesFromBucket
-from config import supabase
 import chainlit.data as cl_data
 from chainlit.data.sql_alchemy import SQLAlchemyDataLayer
 from chainlit.types import ThreadDict
+supabase = config.SUPABASE
 
 # Logging in
 @cl.password_auth_callback
