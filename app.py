@@ -2,7 +2,7 @@ from openai import AsyncOpenAI
 import chainlit as cl
 import sys, traceback
 from config import config
-from utils import extractUploadedFilesByUser, printError, getUploadedFilesFromBucket
+from utils import extractUploadedFilesByUser, printError, getFileContentFromElement 
 import chainlit.data as cl_data
 from chainlit.data.sql_alchemy import SQLAlchemyDataLayer
 from chainlit.types import ThreadDict
@@ -108,7 +108,7 @@ async def on_chat_resume(thread: ThreadDict):
             who_messaged = step["type"].split("_")[0] 
             if who_messaged == "run": continue
             if who_messaged == "user" and step['id'] in elements_dict.keys():
-                file_content = getUploadedFilesFromBucket(elements_dict[step["id"]])
+                file_content = getFileContentFromElement(elements_dict[step["id"]])
                 messages.append({"role":who_messaged, "content": step.get("output", "") + file_content})
                 continue
 
