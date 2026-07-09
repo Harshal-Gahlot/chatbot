@@ -1,3 +1,6 @@
+import os
+os.environ["CHAINLIT_URL"] = "https://harshal-g-chatbot.hf.space" if os.environ.get("SPACE_ID") else "http://localhost:8000"
+print(os.environ["CHAINLIT_URL"])
 from openai import AsyncOpenAI
 import chainlit as cl
 import sys, traceback
@@ -6,24 +9,21 @@ from utils import extractUploadedFilesByUser, printError, getFileContentFromElem
 import chainlit.data as cl_data
 from chainlit.data.sql_alchemy import SQLAlchemyDataLayer
 from chainlit.types import ThreadDict
+from typing import Dict, Optional
 supabase = config.SUPABASE
 
-# Logging in
-@cl.password_auth_callback
-async def authentication( email: str, password: str):
-    try:
-        user_data = supabase.auth.sign_in_with_password({
-            "email": email,
-            "password": password
-        }).user
+# App Authentication
+@cl.oauth_callback
+def oauth_callback(
+    provider_id: str,
+    token: str,
+    raw_user_data: Dict[str, str],
+    default_user: cl.User
+) -> Optional[cl.User]:
 
-        return cl.User(
-            identifier=user_data.email,
-            metadata={"supabase_id": user_data.id}
-        )
-    except Exception as e:
-        print(e)
-        return None
+    default_user.display_name = raw_user_data.get("given_name")
+    print(f"User logged in via {provider_id}: {default_user.identifier}")
+    return default_user
 
 # When chat start
 @cl.on_chat_start
@@ -40,14 +40,14 @@ async def start_app():
 
 # Handle Message
 @cl.on_message
-async def on_new_message( mes: cl.Message):
+async def on_new_message(mes: cl.Message):
     try:
         # immediately show loading spinner, in advance, before llm actually starts thinking.
         msg = cl.Message(content="")
         await msg.send()
         client = cl.user_session.get("client")
         messages = cl.user_session.get("messages")
-        print(messages)
+        # print(messages)
 
         # extract PDF or txt file if uploaded. mes is modified in-place hence no return.
         if mes.elements: extractUploadedFilesByUser(mes)
@@ -123,7 +123,7 @@ async def on_chat_resume(thread: ThreadDict):
 @cl.on_chat_end
 def on_chat_end():
     """run when chat ends"""
-    printError("", "The user is disconnected!") # just to make this log red color, not an error.
+    printError("", "The user left this chat!") # just to make this log red color, not an error.
 
 @cl.on_stop
 def on_stop():

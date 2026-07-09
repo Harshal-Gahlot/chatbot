@@ -42,7 +42,7 @@ class InitEnv:
     def use_local(self):
         self.BASE_URL = "http://172.30.0.1:11434/v1"
         self.API_KEY = "ollama"
-        self.MODEL = "llama3.2:1b"
+        self.MODEL = "llama3.2:3b"
         self.TEMPERATURE = 0.1
         self.DATABASE_URL: str = getenv("DATABASE_URL_LOCAL")
         self.supabase_key: str = getenv("SUPABASE_SECRET_KEY_LOCAL")

@@ -14,7 +14,6 @@ def getContent(f, file_name) -> str:
 def extractUploadedFilesByUser(mes) -> None:
     print("we're in")
     for e in mes.elements:
-        print("ele:", ele)
         # standard text files (.txt, .md, etc) # example of ele.get("mime") are
         # .txt == "text/plan" & .md == "text/markdown"
 
@@ -40,7 +39,7 @@ def getFileContentFromElement(ele) -> str:
             return content
 
     except Exception as e:
-        printError("Error featching uploaded file", e)
+        printError("Error fetching uploaded file", e)
 
 def printError(title, message):
     RED = "\033[31m"
