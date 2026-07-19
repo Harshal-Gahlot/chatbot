@@ -1,1 +1,0 @@
-DROP schema my_chainlit_db
