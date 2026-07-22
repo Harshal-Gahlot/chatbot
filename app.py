@@ -11,6 +11,8 @@ from chainlit.data.sql_alchemy import SQLAlchemyDataLayer
 from chainlit.types import ThreadDict
 from typing import Dict, Optional
 supabase = config.SUPABASE
+# import logging
+# logging.basicConfig(level=logging.DEBUG, force=True)
 
 # App Authentication
 @cl.oauth_callback
@@ -55,7 +57,8 @@ async def on_new_message(mes: cl.Message):
         user_input = {"role": "user", "content": mes.content}
         messages.append(user_input)
 
-        stream = await client.chat.completions.create(model=config.MODEL,
+        stream = await client.chat.completions.create(
+            model=config.MODEL,
             temperature=config.TEMPERATURE,
             messages=messages,
             stream=True
@@ -72,7 +75,6 @@ async def on_new_message(mes: cl.Message):
 
         messages.append(llm_output)
         await msg.update()
-        print(cl.user_session.__dict__)
 
     except Exception as e:
         msg.content = f"❌ Error: {str(e)}"
@@ -116,6 +118,9 @@ async def on_chat_resume(thread: ThreadDict):
                 
         cl.user_session.set("client", client)
         cl.user_session.set("messages", messages)
+        # for message in messages:
+        #     print(message["role"], ":", message["content"])
+        #     if message["role"] == "assistant": print()
 
     # except Exception as e:
         # printError("got error in on chat resume",str(e))
