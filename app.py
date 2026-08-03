@@ -23,8 +23,9 @@ def oauth_callback(
     default_user: cl.User
 ) -> Optional[cl.User]:
 
-    default_user.display_name = raw_user_data.get("given_name")
-    print(f"User logged in via {provider_id}: {default_user.identifier}")
+    name = raw_user_data.get("given_name") if provider_id == "google" else raw_user_data.get("name")
+    default_user.display_name = name
+    print(f"User logged in via { provider_id }, full name: { default_user.identifier }, name: { name }")
     return default_user
 
 # When chat start
@@ -35,7 +36,8 @@ async def start_app():
         base_url=config.BASE_URL,
         api_key=config.API_KEY
     )
-    messages = [ {"role":"system","content":config.SYS_PROMPT}]
+
+    messages = [{ "role": "system","content": config.SYS_PROMPT }]
 
     cl.user_session.set("client", client)
     cl.user_session.set("messages", messages)
@@ -104,7 +106,7 @@ async def on_chat_resume(thread: ThreadDict):
             for e in elements:
                 elements_dict[e.get("forId")] = e
 
-        messages = [ {"role": "system", "content": config.SYS_PROMPT}]
+        messages = [{ "role": "system","content": config.SYS_PROMPT }]
 
         for step in thread.get("steps", []):
             who_messaged = step["type"].split("_")[0] 
