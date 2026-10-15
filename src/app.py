@@ -25,6 +25,9 @@ from config import (
     DATABASE_URL,
     SYS_PROMPT,
     SUPABASE,
+    TOP_P,
+    FREQUENCY_PENALTY,
+    PRESENCE_PENALTY,
 )
 from tools import search_web, tools_schema
 from utils import extractUploadedFilesByUser, getFileContentFromElement, printError
@@ -88,7 +91,6 @@ async def on_new_message(mes: cl.Message):
         while to_be_continued and iteration < max_iterations:
             iteration += 1
             tool_calls = {}
-            print(type(TEMPERATURE), "temp")
 
             stream = await client.chat.completions.create(
                 model=MODEL,
@@ -96,6 +98,9 @@ async def on_new_message(mes: cl.Message):
                 tools=tools_schema,
                 tool_choice="auto",
                 messages=messages,
+                top_p=TOP_P,
+                frequency_penalty=FREQUENCY_PENALTY,
+                presence_penalty=PRESENCE_PENALTY,
                 stream=True,
             )
 

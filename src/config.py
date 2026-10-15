@@ -2,13 +2,17 @@ from os import getenv
 from dotenv import load_dotenv
 
 load_dotenv()
+load_dotenv(dotenv_path="configs.env")
 
 # Explicitly telling Pyright type definations.
 BASE_URL: str | None = ""
 API_KEY: str | None = ""
 
 MODEL: str | None = ""
-TEMPERATURE: float | None = 0.7
+TEMPERATURE: float | None = None
+TOP_P: float | None = None
+FREQUENCY_PENALTY: float | None = None
+PRESENCE_PENALTY: float | None = None
 
 DATABASE_URL: str | None = ""
 supabase_key: str | None = ""
@@ -68,8 +72,24 @@ def use_local_prompt():
         raise ValueError("prompt.env.md NOT FOUND")
 
 
-def mode(db_instance, provider, prompt_instance, temp, model):
-    global BASE_URL, API_KEY, MODEL, TEMPERATURE
+def mode(
+    model,
+    provider,
+    db_instance,
+    prompt_instance,
+    temp,
+    top_p,
+    frequency_penalty,
+    presence_penalty,
+):
+    global \
+        BASE_URL, \
+        API_KEY, \
+        MODEL, \
+        TEMPERATURE, \
+        TOP_P, \
+        FREQUENCY_PENALTY, \
+        PRESENCE_PENALTY
 
     match provider:
         case "local":
@@ -86,6 +106,9 @@ def mode(db_instance, provider, prompt_instance, temp, model):
 
     MODEL = model
     TEMPERATURE = float(temp)
+    TOP_P = float(top_p)
+    FREQUENCY_PENALTY = float(frequency_penalty)
+    PRESENCE_PENALTY = float(presence_penalty)
 
     if db_instance == "prod":
         set_prod_db()
@@ -97,37 +120,42 @@ def mode(db_instance, provider, prompt_instance, temp, model):
         use_local_prompt()
 
 
-print("temp:", type(TEMPERATURE))
-
 local_models = ["gemma4:e2b", "gemma4:e4b"]
 groq_models = ["qwen/qwen3.8-27b", "openai/gpt-oss-120b"]
 
+provider = getenv("PROVIDER")
+model = getenv("MODEL")
 prompt_instance = getenv("PROMPT_INSTANCE")
 db_instance = getenv("DB_INSTANCE")
-provider = getenv("PROVIDER")
-temp = getenv("TEMPERATURE")
-model = getenv("MODEL")
 
-if not all([db_instance and provider and prompt_instance and model and temp]):
-    raise_err("""at least one of the inital Env values is missing in .env: \n
-        DB_INSTANCE, PROVIDER, PROMPT_INSTANCE, MODEL, TEMPERATURE""")
+temp = getenv("TEMPERATURE")
+top_p = getenv("TOP_P")
+frequency_penalty = getenv("FREQUENCY_PENALTY")
+presence_penalty = getenv("PRESENCE_PENALTY")
+# max_tokens = getenv("MAX_TOKENS")
+
+if not all([temp and top_p and frequency_penalty and presence_penalty]):
+    raise_err("""at least one of the inital Configs values is missing in configs.env: \n
+        TEMPERATURE, TOP_P, FREQUENCY_PENALTY, PRESENCE_PENALTY""")
+elif not all([db_instance and provider and prompt_instance and model]):
+    raise_err("""at least one of the inital Secrate values is missing in .env: \n
+        DB_INSTANCE, PROVIDER, PROMPT_INSTANCE, MODEL""")
 else:
     mode(
-        db_instance=db_instance,
+        model=model,
         provider=provider,
+        db_instance=db_instance,
         prompt_instance=prompt_instance,
         temp=temp,
-        model=model,
+        top_p=top_p,
+        frequency_penalty=frequency_penalty,
+        presence_penalty=presence_penalty,
     )
 
 if not BASE_URL:
     raise_err("BASE_URL")
 if not API_KEY:
     raise_err("API_KEY")
-if not MODEL:
-    raise_err("MODEL")
-if not TEMPERATURE:
-    raise_err("TEMPERATURE")
 if not DATABASE_URL:
     raise_err("DATABASE_URL")
 if not supabase_key:
