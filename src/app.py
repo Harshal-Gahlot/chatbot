@@ -1,47 +1,62 @@
-import os, asyncio
-os.environ["CHAINLIT_URL"] = "https://harshal-g-chatbot.hf.space" if os.environ.get("SPACE_ID") else "http://localhost:8000"
+import asyncio
+import os
+
+os.environ["CHAINLIT_URL"] = (
+    "https://harshal-g-chatbot.hf.space"
+    if os.environ.get("SPACE_ID")
+    else "http://localhost:8000"
+)
 print(os.environ["CHAINLIT_URL"])
-from openai import AsyncOpenAI
+import json
+import sys
+import traceback
+
 import chainlit as cl
-import sys, traceback, json
-from config import config
-from utils import extractUploadedFilesByUser, printError, getFileContentFromElement 
-from tools import tools_schema, search_web
 import chainlit.data as cl_data
 from chainlit.data.sql_alchemy import SQLAlchemyDataLayer
 from chainlit.types import ThreadDict
-from typing import Dict, Optional
+from openai import AsyncOpenAI
+
+from config import get_config
+
+config = get_config()
+from tools import search_web, tools_schema
+from utils import extractUploadedFilesByUser, getFileContentFromElement, printError
+
 supabase = config.SUPABASE
 # import logging
 # logging.basicConfig(level=logging.DEBUG, force=True)
 
+
 # App Authentication
 @cl.oauth_callback
 def oauth_callback(
-    provider_id: str,
-    token: str,
-    raw_user_data: Dict[str, str],
-    default_user: cl.User
-) -> Optional[cl.User]:
+    provider_id: str, token: str, raw_user_data: dict[str, str], default_user: cl.User
+) -> cl.User | None:
 
-    name = raw_user_data.get("given_name") if provider_id == "google" else raw_user_data.get("name")
+    name = (
+        raw_user_data.get("given_name")
+        if provider_id == "google"
+        else raw_user_data.get("name")
+    )
     default_user.display_name = name
-    print(f"User logged in via { provider_id }, full name: { default_user.identifier }, name: { name }")
+    print(
+        f"User logged in via {provider_id}, full name: {default_user.identifier}, name: {name}"
+    )
     return default_user
+
 
 # When chat start
 @cl.on_chat_start
 async def start_app():
     print("new chat started\n")
-    client = AsyncOpenAI(
-        base_url=config.BASE_URL,
-        api_key=config.API_KEY
-    )
+    client = AsyncOpenAI(base_url=config.BASE_URL, api_key=config.API_KEY)
 
-    messages = [{ "role": "system","content": config.SYS_PROMPT }]
+    messages = [{"role": "system", "content": config.SYS_PROMPT}]
 
     cl.user_session.set("client", client)
     cl.user_session.set("messages", messages)
+
 
 # Handle Message
 @cl.on_message
@@ -55,14 +70,15 @@ async def on_new_message(mes: cl.Message):
         # print(messages)
 
         # extract PDF or txt file if uploaded. mes is modified in-place hence no return.
-        if mes.elements: extractUploadedFilesByUser(mes)
-        
+        if mes.elements:
+            extractUploadedFilesByUser(mes)
+
         user_input = {"role": "user", "content": mes.content}
         messages.append(user_input)
         to_be_continued = True
         max_iterations = 5
         iteration = 0
-        
+
         while to_be_continued and iteration < max_iterations:
             iteration += 1
             tool_calls = {}
@@ -73,7 +89,7 @@ async def on_new_message(mes: cl.Message):
                 tools=tools_schema,
                 tool_choice="auto",
                 messages=messages,
-                stream=True
+                stream=True,
             )
 
             async for chunk in stream:
@@ -91,24 +107,24 @@ async def on_new_message(mes: cl.Message):
                             tool_calls[idx] = {
                                 "id": tool.id or f"call_{idx}",
                                 "type": "function",
-                                "function": {"name": "", "arguments": ""}
+                                "function": {"name": "", "arguments": ""},
                             }
                         if tool.id:
                             tool_calls[idx]["id"] = tool.id
                         if tool.function and tool.function.name:
                             tool_calls[idx]["function"]["name"] += tool.function.name
                         if tool.function and tool.function.arguments:
-                            tool_calls[idx]["function"]["arguments"] += tool.function.arguments
+                            tool_calls[idx]["function"]["arguments"] += (
+                                tool.function.arguments
+                            )
 
             if tool_calls:
                 all_tool_calls = list(tool_calls.values())
                 print("all tool calls", all_tool_calls)
 
-                messages.append({
-                    "role": "assistant",
-                    "content": "",
-                    "tool_calls": all_tool_calls
-                })
+                messages.append(
+                    {"role": "assistant", "content": "", "tool_calls": all_tool_calls}
+                )
 
                 for tool in all_tool_calls:
                     if tool["function"]["name"] == "search_web":
@@ -116,20 +132,24 @@ async def on_new_message(mes: cl.Message):
                         query = args.get("query", "")
                         print("query web:", query)
 
-                        async with cl.Step(name=f"🔍 Searching web for: '{query}'") as step:
+                        async with cl.Step(
+                            name=f"🔍 Searching web for: '{query}'"
+                        ) as step:
                             search_results = await asyncio.to_thread(search_web, query)
                             step.output = search_results
-                        
-                        messages.append({
-                            "role": "tool",
-                            "tool_call_id": tool["id"],
-                            "name": tool["function"]["name"],
-                            "content": search_results
-                        })
-            else: 
+
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool["id"],
+                                "name": tool["function"]["name"],
+                                "content": search_results,
+                            }
+                        )
+            else:
                 to_be_continued = False
                 print("to be continued set false")
-            
+
         # update the content fr:
         llm_output = {"role": "assistant", "content": msg.content}
 
@@ -138,64 +158,72 @@ async def on_new_message(mes: cl.Message):
         print("ended")
 
     except Exception as e:
-        msg.content = f"❌ Error: {str(e)}"
+        msg.content = f"❌ Error: {e!s}"
         # msg.is_error(True)
         await msg.update()
         exc_type, exc_value, exc_tb = sys.exc_info()
         # change the number [n] in below lines if error lines is not correct
         printError("\nUnder CODE BLOCK", traceback.extract_tb(exc_tb)[0].line)
-        print("line number: ",traceback.extract_tb(exc_tb)[0].lineno)
+        print("line number: ", traceback.extract_tb(exc_tb)[0].lineno)
         # print("parent function name: ",traceback.extract_tb(exc_tb)[0].name)
-        print("child function name: ",traceback.extract_tb(exc_tb)[0].name)
-        print("filename:part", "/".join(traceback.extract_tb(exc_tb)[0].filename.split("/")[-2:]))
+        print("child function name: ", traceback.extract_tb(exc_tb)[0].name)
+        print(
+            "filename:part",
+            "/".join(traceback.extract_tb(exc_tb)[0].filename.split("/")[-2:]),
+        )
         printError("ERROR MESSAGE", e)
+
 
 @cl.on_chat_resume
 async def on_chat_resume(thread: ThreadDict):
     # try:
-        print("user want to resume the chat\n")
-        client = AsyncOpenAI(
-            base_url=config.BASE_URL,
-            api_key=config.API_KEY
-        )
+    print("user want to resume the chat\n")
+    client = AsyncOpenAI(base_url=config.BASE_URL, api_key=config.API_KEY)
 
-        elements = thread.get("elements", [])
-        elements_dict = {}
-        if elements:
-            for e in elements:
-                elements_dict[e.get("forId")] = e
+    elements = thread.get("elements", [])
+    elements_dict = {}
+    if elements:
+        for e in elements:
+            elements_dict[e.get("forId")] = e
 
-        messages = [{ "role": "system","content": config.SYS_PROMPT }]
+    messages = [{"role": "system", "content": config.SYS_PROMPT}]
 
-        for step in thread.get("steps", []):
-            who_messaged = step["type"].split("_")[0] 
-            if who_messaged == "run": continue
-            if who_messaged == "user" and step['id'] in elements_dict.keys():
-                file_content = getFileContentFromElement(elements_dict[step["id"]])
-                messages.append({"role":who_messaged, "content": step.get("output", "") + file_content})
-                continue
+    for step in thread.get("steps", []):
+        who_messaged = step["type"].split("_")[0]
+        if who_messaged == "run":
+            continue
+        if who_messaged == "user" and step["id"] in elements_dict:
+            file_content = getFileContentFromElement(elements_dict[step["id"]])
+            messages.append(
+                {"role": who_messaged, "content": step.get("output", "") + file_content}
+            )
+            continue
 
-            messages.append({"role":who_messaged, "content": step.get("output", "")})
-                
-        cl.user_session.set("client", client)
-        cl.user_session.set("messages", messages)
-        # for message in messages:
-        #     print(message["role"], ":", message["content"])
-        #     if message["role"] == "assistant": print()
+        messages.append({"role": who_messaged, "content": step.get("output", "")})
 
-    # except Exception as e:
-        # printError("got error in on chat resume",str(e))
+    cl.user_session.set("client", client)
+    cl.user_session.set("messages", messages)
+    # for message in messages:
+    #     print(message["role"], ":", message["content"])
+    #     if message["role"] == "assistant": print()
+
+
+# except Exception as e:
+# printError("got error in on chat resume",str(e))
+
 
 @cl.on_chat_end
 def on_chat_end():
     """run when chat ends"""
-    printError("", "The user left this chat!") # just to make this log red color, not an error.
+    printError(
+        "", "The user left this chat!"
+    )  # just to make this log red color, not an error.
+
 
 @cl.on_stop
 def on_stop():
     """The on_stop decorator is used to define a hook that is called
     when the user clicks the stop button while a task was running."""
-    pass
     # print("user stopped the llm mid way")
 
 
@@ -205,20 +233,19 @@ class CustomDataLayer(SQLAlchemyDataLayer):
             with open(element.path, "rb") as f:
                 file_path = f"{element.thread_id}/{element.id}-{element.name}"
                 supabase.storage.from_("chatbot-files").upload(
-                        file=f,
-                        path=file_path,
-                        file_options={"content-type": element.mime}
-                        )
-            element.url = supabase.storage.from_("chatbot-files").get_public_url(file_path)
+                    file=f, path=file_path, file_options={"content-type": element.mime}
+                )
+            element.url = supabase.storage.from_("chatbot-files").get_public_url(
+                file_path
+            )
         element_dict = element.to_dict()
-        clean_dict = {k:v for k,v in element_dict.items() if v is not None}
+        clean_dict = {k: v for k, v in element_dict.items() if v is not None}
 
-        columns = ", ".join(f'"{key}"' for key in clean_dict.keys())
-        values  = ", ".join(f':{key}' for key in clean_dict.keys())
+        columns = ", ".join(f'"{key}"' for key in clean_dict)
+        values = ", ".join(f":{key}" for key in clean_dict)
 
         query = f"INSERT INTO elements ({columns}) VALUES ({values}) ON CONFLICT (id) DO NOTHING;"
         await self.execute_sql(query=query, parameters=clean_dict)
 
 
 cl_data._data_layer = CustomDataLayer(conninfo=config.DATABASE_URL)
-
