@@ -1,11 +1,12 @@
-import os
+import os, asyncio
 os.environ["CHAINLIT_URL"] = "https://harshal-g-chatbot.hf.space" if os.environ.get("SPACE_ID") else "http://localhost:8000"
 print(os.environ["CHAINLIT_URL"])
 from openai import AsyncOpenAI
 import chainlit as cl
-import sys, traceback
+import sys, traceback, json
 from config import config
 from utils import extractUploadedFilesByUser, printError, getFileContentFromElement 
+from tools import tools_schema, search_web
 import chainlit.data as cl_data
 from chainlit.data.sql_alchemy import SQLAlchemyDataLayer
 from chainlit.types import ThreadDict
@@ -58,25 +59,83 @@ async def on_new_message(mes: cl.Message):
         
         user_input = {"role": "user", "content": mes.content}
         messages.append(user_input)
+        to_be_continued = True
+        max_iterations = 5
+        iteration = 0
+        
+        while to_be_continued and iteration < max_iterations:
+            iteration += 1
+            tool_calls = {}
 
-        stream = await client.chat.completions.create(
-            model=config.MODEL,
-            temperature=config.TEMPERATURE,
-            messages=messages,
-            stream=True
-        )
+            stream = await client.chat.completions.create(
+                model=config.MODEL,
+                temperature=config.TEMPERATURE,
+                tools=tools_schema,
+                tool_choice="auto",
+                messages=messages,
+                stream=True
+            )
 
-        async for chunk in stream:
-            # walrus/assignment expression operator
-            if token := chunk.choices[0].delta.content or "":
-                # Adds fancy UI loading as token are streamed in from network.
-                await msg.stream_token(token)
+            async for chunk in stream:
+                print("chunk:", chunk)
+                delta = chunk.choices[0].delta
 
+                if delta.content:
+                    # Adds fancy UI loading as token are streamed in from network.
+                    await msg.stream_token(delta.content)
+
+                if delta.tool_calls:
+                    for tool in delta.tool_calls:
+                        idx = tool.index
+                        if idx not in tool_calls:
+                            tool_calls[idx] = {
+                                "id": tool.id or f"call_{idx}",
+                                "type": "function",
+                                "function": {"name": "", "arguments": ""}
+                            }
+                        if tool.id:
+                            tool_calls[idx]["id"] = tool.id
+                        if tool.function and tool.function.name:
+                            tool_calls[idx]["function"]["name"] += tool.function.name
+                        if tool.function and tool.function.arguments:
+                            tool_calls[idx]["function"]["arguments"] += tool.function.arguments
+
+            if tool_calls:
+                all_tool_calls = list(tool_calls.values())
+                print("all tool calls", all_tool_calls)
+
+                messages.append({
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": all_tool_calls
+                })
+
+                for tool in all_tool_calls:
+                    if tool["function"]["name"] == "search_web":
+                        args = json.loads(tool["function"]["arguments"] or "{}")
+                        query = args.get("query", "")
+                        print("query web:", query)
+
+                        async with cl.Step(name=f"🔍 Searching web for: '{query}'") as step:
+                            search_results = await asyncio.to_thread(search_web, query)
+                            step.output = search_results
+                        
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool["id"],
+                            "name": tool["function"]["name"],
+                            "content": search_results
+                        })
+            else: 
+                to_be_continued = False
+                print("to be continued set false")
+            
         # update the content fr:
         llm_output = {"role": "assistant", "content": msg.content}
 
         messages.append(llm_output)
         await msg.update()
+        print("ended")
 
     except Exception as e:
         msg.content = f"❌ Error: {str(e)}"
@@ -86,10 +145,10 @@ async def on_new_message(mes: cl.Message):
         # change the number [n] in below lines if error lines is not correct
         printError("\nUnder CODE BLOCK", traceback.extract_tb(exc_tb)[0].line)
         print("line number: ",traceback.extract_tb(exc_tb)[0].lineno)
-        print("parent function name: ",traceback.extract_tb(exc_tb)[0].name)
+        # print("parent function name: ",traceback.extract_tb(exc_tb)[0].name)
         print("child function name: ",traceback.extract_tb(exc_tb)[0].name)
         print("filename:part", "/".join(traceback.extract_tb(exc_tb)[0].filename.split("/")[-2:]))
-        printError("ERROR MESSAGE", str(e))
+        printError("ERROR MESSAGE", e)
 
 @cl.on_chat_resume
 async def on_chat_resume(thread: ThreadDict):

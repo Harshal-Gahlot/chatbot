@@ -6,3 +6,5 @@ websockets==15.0.1
 supabase==2.31.0
 sqlalchemy==2.0.51
 asyncpg==0.31.0
+ddgs==9.14.4
+requests==2.34.2

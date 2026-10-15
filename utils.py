@@ -1,6 +1,8 @@
-from PyPDF2 import PdfReader
 from io import BytesIO
+
 import requests
+from PyPDF2 import PdfReader
+
 
 def getContent(f, file_name) -> str:
     pdf_reader = PdfReader(f)
@@ -10,6 +12,7 @@ def getContent(f, file_name) -> str:
         content += f"\npage no. {i}:\t{page.extract_text()}"
         i += 1
     return content
+
 
 def extractUploadedFilesByUser(mes) -> None:
     print("we're in")
@@ -25,7 +28,8 @@ def extractUploadedFilesByUser(mes) -> None:
             with open(e.path, "rb") as f:
                 mes.content += getContent(f, e.name)
 
-def getFileContentFromElement(ele) -> str:
+
+def getFileContentFromElement(ele) -> str | None:
     try:
         if "text" in ele.get("mime"):
             response = requests.get(ele["url"])
@@ -41,8 +45,8 @@ def getFileContentFromElement(ele) -> str:
     except Exception as e:
         printError("Error fetching uploaded file", e)
 
+
 def printError(title, message):
     RED = "\033[31m"
     RESET = "\033[0m"
     print(title + ":" + RED, message, RESET)
-
