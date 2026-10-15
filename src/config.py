@@ -3,92 +3,155 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Explicitly telling Pyright type definations.
+BASE_URL: str | None = ""
+API_KEY: str | None = ""
 
-class InitEnv:
-    SYS_PROMPT: str = "You are a Chatbot built by a person named Harshal. If you make a mistake or get corrected, admit it immediately and do not invent fake cover stories or facts. You are his digiat clone ai, just chat noramlly unless you learn that you're chatting with a recrutor, you must try to convence them that he's a good candidate unless either the role is not entry level(i won't qualify for mid/senior SWE role) or unless harshal genuinly doesn't have tech skills to qualify for that role. Otherwise if harshal does have nessassary skills, consider them since your creator is looking for intership, entry-level & junior tech roles. Do not give personal data until asked for that piece of data and only provide that piece of data. Keep your responce brief and to the point, no throwing wall of text on user. Below is his personal data that you can use to answer the query of user(stranger who will be talking with you, most likly not your creator). \n\n\n "
-    if (content := getenv("prompt_md_content")) is not None:
-        SYS_PROMPT += content
+MODEL: str | None = ""
+TEMPERATURE: float | None = 0.7
+
+DATABASE_URL: str | None = ""
+supabase_key: str | None = ""
+supabase_url: str | None = ""
+
+SYS_PROMPT: str = ""
+
+try:
+    with open("src/sys_prompt.txt", "r", encoding="utf-8") as f:
+        SYS_PROMPT += f.read()
+        print("sys prompt part 1 found:", True)
+except FileNotFoundError:
+    print("NOT FOUND: sys_prompt.txt")
+
+
+def raise_err(var):
+    raise ValueError(f'missing "{var}" environment variable')
+
+
+def set_prod_db():
+    globals().update(
+        {
+            "DATABASE_URL": getenv("DATABASE_URL_PROD"),
+            "supabase_key": getenv("SUPABASE_SECRET_KEY_PROD"),
+            "supabase_url": getenv("SUPABASE_URL_PROD"),
+        }
+    )
+
+
+def set_local_db():
+    globals().update(
+        {
+            "DATABASE_URL": getenv("DATABASE_URL_LOCAL"),
+            "supabase_key": getenv("SUPABASE_SECRET_KEY_LOCAL"),
+            "supabase_url": getenv("SUPABASE_URL_LOCAL"),
+        }
+    )
+
+
+def use_prod_prompt():
+    try:
+        if (content := getenv("prompt_md_content")) is not None:
+            global SYS_PROMPT
+            SYS_PROMPT += content
+            print("sys prompt part 2 found:", True)
+    except FileNotFoundError:
+        raise ValueError("prompt.env.md NOT FOUND")
+
+
+def use_local_prompt():
+    try:
+        with open("prompt.env.md", "r", encoding="utf-8") as f:
+            global SYS_PROMPT
+            SYS_PROMPT += f.read()
+            print("sys prompt part 2 found:", True)
+    except FileNotFoundError:
+        raise ValueError("prompt.env.md NOT FOUND")
+
+
+def mode(db_instance, provider, prompt_instance, temp, model):
+    global BASE_URL, API_KEY, MODEL, TEMPERATURE
+
+    match provider:
+        case "local":
+            BASE_URL = "http://127.0.0.1:8080/v1"
+            API_KEY = "ollama"
+        case "groq":
+            BASE_URL = "https://api.groq.com/openai/v1"
+            API_KEY = getenv("GROQ_API_KEY")
+        case "openrouter":
+            BASE_URL = "https://openrouter.ai/api/v1"
+            API_KEY = getenv("OPENROUTER_API_KEY")
+        case _:
+            raise ValueError("no such provider")
+
+    MODEL = model
+    TEMPERATURE = float(temp)
+
+    if db_instance == "prod":
+        set_prod_db()
     else:
-        try:
-            with open("prompt.env.md", "r", encoding="utf-8") as f:
-                SYS_PROMPT += f.read()
-        except FileNotFoundError:
-            print(
-                "NOT FOUND EITHER prompt.env.md FILE OR prompt_md_content ENVIRONMENT KEY! continuing with default sys prompt"
-            )
-
-    def __init__(self, provider):
-        self.BASE_URL: str = ""
-        self.API_KEY: str = ""
-        self.MODEL: str = getenv("MODEL") or ""
-        self.TEMPERATURE: str = 0.7
-        self.DATABASE_URL: str = ""
-        self.supabase_key: str = ""
-        self.supabase_url: str = ""
-
-        if provider == "local":
-            self.use_local()
-        else:
-            if provider == "groq":
-                self.BASE_URL = "https://api.groq.com/openai/v1"
-                self.API_KEY = getenv("GROQ_API_KEY")
-            elif provider == "openrouter":
-                self.BASE_URL = "https://openrouter.ai/api/v1"
-                self.API_KEY = getenv("OPENROUTER_API_KEY")
-            else:
-                raise ValueError("no such provider")
-
-        # Always set these from env vars (works for all providers)
-        self.DATABASE_URL = getenv("DATABASE_URL_PROD") or getenv("DATABASE_URL_LOCAL")
-        self.supabase_key = getenv("SUPABASE_SECRET_KEY_PROD") or getenv(
-            "SUPABASE_SECRET_KEY_LOCAL"
-        )
-        self.supabase_url = getenv("SUPABASE_URL_PROD") or getenv("SUPABASE_URL_LOCAL")
-
-        if not self.BASE_URL:
-            raise ValueError("missing BASE_URL environment variable")
-        if not self.API_KEY:
-            raise ValueError("missing API_KEY environment variable")
-        if not self.MODEL:
-            raise ValueError("missing MODEL environment variable")
-
-        from supabase import create_client, Client
-
-        self.SUPABASE: Client = create_client(
-            self.supabase_url.strip(), self.supabase_key.strip()
-        )
-
-    def use_groq(self):
-        pass  # BASE_URL and API_KEY set in __init__ already
-
-    def use_openrouter(self):
-        pass  # BASE_URL and API_KEY set in __init__ already
-
-    def use_local(self):
-        self.BASE_URL = "http://127.0.0.1:8080/v1"
-        self.API_KEY = "ollama"
-        self.MODEL = getenv("MODEL") or "gemma4:e2b"
-        self.TEMPERATURE = 0.1
-        self.DATABASE_URL = getenv("DATABASE_URL_LOCAL")
-        self.supabase_key = getenv("SUPABASE_SECRET_KEY_LOCAL")
-        self.supabase_url = getenv("SUPABASE_URL_LOCAL")
+        set_local_db()
+    if prompt_instance == "prod":
+        use_prod_prompt()
+    else:
+        use_local_prompt()
 
 
-# Lazy config initialization - moved from module level
-# This prevents crashes when config is imported before env vars are loaded
-_config: object | None = None
+print("temp:", type(TEMPERATURE))
+
+local_models = ["gemma4:e2b", "gemma4:e4b"]
+groq_models = ["qwen/qwen3.8-27b", "openai/gpt-oss-120b"]
+
+prompt_instance = getenv("PROMPT_INSTANCE")
+db_instance = getenv("DB_INSTANCE")
+provider = getenv("PROVIDER")
+temp = getenv("TEMPERATURE")
+model = getenv("MODEL")
+
+if not all([db_instance and provider and prompt_instance and model and temp]):
+    raise_err("""at least one of the inital Env values is missing in .env: \n
+        DB_INSTANCE, PROVIDER, PROMPT_INSTANCE, MODEL, TEMPERATURE""")
+else:
+    mode(
+        db_instance=db_instance,
+        provider=provider,
+        prompt_instance=prompt_instance,
+        temp=temp,
+        model=model,
+    )
+
+if not BASE_URL:
+    raise_err("BASE_URL")
+if not API_KEY:
+    raise_err("API_KEY")
+if not MODEL:
+    raise_err("MODEL")
+if not TEMPERATURE:
+    raise_err("TEMPERATURE")
+if not DATABASE_URL:
+    raise_err("DATABASE_URL")
+if not supabase_key:
+    raise_err("supabase_secret_key")
+if not supabase_url:
+    raise_err("supabase_url")
 
 
-def get_config() -> InitEnv:
-    """Return the config instance, initializing it lazily if needed."""
-    global _config
-    if _config is None:
-        app_mode = getenv("APP_MODE")
-        if not app_mode:
-            raise ValueError("APP_MODE environment variable not set")
-        _config = InitEnv(app_mode)
-    return _config
+from supabase import create_client, Client
 
-
-config = get_config()
-
+SUPABASE: Client = create_client(supabase_url.strip(), supabase_key.strip())
+#
+# to get a list of groq laatest available models directly.
+# import requests
+# import os
+#
+# api_key = os.environ.get("GROQ_API_KEY")
+# url = "https://api.groq.com/openai/v1/models"
+#
+# headers = {
+#     "Authorization": f"Bearer {api_key}",
+#     "Content-Type": "application/json"
+# }
+#
+# response = requests.get(url, headers=headers)
+#
+# print(response.json())

@@ -17,13 +17,19 @@ from chainlit.data.sql_alchemy import SQLAlchemyDataLayer
 from chainlit.types import ThreadDict
 from openai import AsyncOpenAI
 
-from config import get_config
-
-config = get_config()
+from config import (
+    BASE_URL,
+    API_KEY,
+    MODEL,
+    TEMPERATURE,
+    DATABASE_URL,
+    SYS_PROMPT,
+    SUPABASE,
+)
 from tools import search_web, tools_schema
 from utils import extractUploadedFilesByUser, getFileContentFromElement, printError
 
-supabase = config.SUPABASE
+supabase = SUPABASE
 # import logging
 # logging.basicConfig(level=logging.DEBUG, force=True)
 
@@ -50,9 +56,9 @@ def oauth_callback(
 @cl.on_chat_start
 async def start_app():
     print("new chat started\n")
-    client = AsyncOpenAI(base_url=config.BASE_URL, api_key=config.API_KEY)
+    client = AsyncOpenAI(base_url=BASE_URL, api_key=API_KEY)
 
-    messages = [{"role": "system", "content": config.SYS_PROMPT}]
+    messages = [{"role": "system", "content": SYS_PROMPT}]
 
     cl.user_session.set("client", client)
     cl.user_session.set("messages", messages)
@@ -82,10 +88,11 @@ async def on_new_message(mes: cl.Message):
         while to_be_continued and iteration < max_iterations:
             iteration += 1
             tool_calls = {}
+            print(type(TEMPERATURE), "temp")
 
             stream = await client.chat.completions.create(
-                model=config.MODEL,
-                temperature=config.TEMPERATURE,
+                model=MODEL,
+                temperature=TEMPERATURE,
                 tools=tools_schema,
                 tool_choice="auto",
                 messages=messages,
@@ -178,7 +185,7 @@ async def on_new_message(mes: cl.Message):
 async def on_chat_resume(thread: ThreadDict):
     # try:
     print("user want to resume the chat\n")
-    client = AsyncOpenAI(base_url=config.BASE_URL, api_key=config.API_KEY)
+    client = AsyncOpenAI(base_url=BASE_URL, api_key=API_KEY)
 
     elements = thread.get("elements", [])
     elements_dict = {}
@@ -186,7 +193,7 @@ async def on_chat_resume(thread: ThreadDict):
         for e in elements:
             elements_dict[e.get("forId")] = e
 
-    messages = [{"role": "system", "content": config.SYS_PROMPT}]
+    messages = [{"role": "system", "content": SYS_PROMPT}]
 
     for step in thread.get("steps", []):
         who_messaged = step["type"].split("_")[0]
@@ -248,4 +255,4 @@ class CustomDataLayer(SQLAlchemyDataLayer):
         await self.execute_sql(query=query, parameters=clean_dict)
 
 
-cl_data._data_layer = CustomDataLayer(conninfo=config.DATABASE_URL)
+cl_data._data_layer = CustomDataLayer(conninfo=DATABASE_URL)
